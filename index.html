@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Bayside Sports Insights</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%E2%9A%BE%3C/text%3E%3C/svg%3E" />
+<style>
+  :root { --bg: #04070d; --accent: #38bdf8; --gold: #ffd76a; --muted: #7e90b4; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); }
+  /* the board fills the whole window — no Google chrome, just BSI */
+  #board {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    border: 0; display: block; background: var(--bg);
+  }
+  /* branded loading + no-token states */
+  #veil {
+    position: fixed; inset: 0; z-index: 5; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 18px; text-align: center;
+    background:
+      radial-gradient(900px 420px at 50% -6%, rgba(56,189,248,0.10), transparent 60%),
+      linear-gradient(180deg, #070c15 0%, #04070d 100%);
+    color: #e9f3ff; font-family: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
+    transition: opacity .45s ease; padding: 24px;
+  }
+  #veil.hide { opacity: 0; pointer-events: none; }
+  .ball {
+    width: 62px; height: 62px; border-radius: 50%; background: #fff;
+    position: relative; box-shadow: 0 0 34px rgba(56,189,248,0.35);
+    animation: spin 1.15s linear infinite;
+  }
+  .ball::before, .ball::after {
+    content: ''; position: absolute; top: 8px; bottom: 8px; width: 12px;
+    border: 2px solid #e0342c; border-top: 0; border-bottom: 0; border-radius: 50%;
+  }
+  .ball::before { left: 9px; border-right: 0; }
+  .ball::after  { right: 9px; border-left: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .brand { font-family: 'Orbitron', 'Segoe UI', sans-serif; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 800; font-size: 15px; text-shadow: 0 0 18px rgba(56,189,248,0.5); }
+  .sub { color: var(--muted); font-size: 12.5px; max-width: 340px; line-height: 1.6; }
+  .sub b { color: var(--gold); }
+  a.mail { color: var(--accent); text-decoration: none; border-bottom: 1px dotted rgba(56,189,248,0.5); }
+</style>
+</head>
+<body>
+  <iframe id="board" title="BSI Picks Board" allow="autoplay; encrypted-media" referrerpolicy="no-referrer"></iframe>
+
+  <div id="veil">
+    <div class="ball" id="spinner"></div>
+    <div class="brand">⚾ Bayside Sports Insights</div>
+    <div class="sub" id="msg">Warming up the board…</div>
+  </div>
+
+<script>
+(function () {
+  // ── The board's permanent web-app URL (Apps Script /exec) ──
+  var EXEC = 'https://script.google.com/macros/s/AKfycbwTgNlxFXIedUZfmybrlrWbwYZbKN_a4gYtXq2C_UgfyBU4fox_7VLTcWQVrL169bI5/exec';
+
+  // token can arrive as ?token=XXX  (or #token=XXX as a fallback)
+  function readParams() {
+    var out = {};
+    function grab(str) {
+      (str || '').replace(/^[?#]/, '').split('&').forEach(function (kv) {
+        if (!kv) return;
+        var i = kv.indexOf('='); var k = i < 0 ? kv : kv.slice(0, i);
+        var v = i < 0 ? '' : kv.slice(i + 1);
+        if (k) out[decodeURIComponent(k)] = decodeURIComponent(v);
+      });
+    }
+    grab(location.search); grab(location.hash);
+    return out;
+  }
+
+  var p = readParams();
+  var veil = document.getElementById('veil');
+  var msg  = document.getElementById('msg');
+  var frame = document.getElementById('board');
+
+  if (!p.token) {
+    // no personal link → friendly invite-only message, no board load
+    document.getElementById('spinner').style.display = 'none';
+    msg.innerHTML = 'This board is invite-only. Ask Mike for your personal link to get in.<br><br>' +
+      '<span style="font-size:11px;color:#5b6b8a">For entertainment only · not betting advice</span>';
+    return;
+  }
+
+  // build the board URL, forwarding every param (token, &nocache=1, etc.)
+  var qs = Object.keys(p).map(function (k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
+  }).join('&');
+  frame.src = EXEC + '?' + qs;
+
+  // reveal the board once it loads; keep the URL bar clean (token stays, but no Google chrome)
+  var done = false;
+  function reveal() { if (done) return; done = true; veil.classList.add('hide'); setTimeout(function(){ veil.style.display='none'; }, 500); }
+  frame.addEventListener('load', function () { setTimeout(reveal, 350); });
+  // safety: never leave someone stuck on the spinner
+  setTimeout(reveal, 9000);
+})();
+</script>
+</body>
+</html>
