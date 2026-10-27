@@ -100,25 +100,31 @@ def _f(v):
     return int(f) if f.is_integer() else f
 
 
+def _selections(sel: str):
+    """"Take Los Angeles and under the total" is two selections."""
+    return re.split(r"\s+(?:and|&|plus)\s+", sel)
+
+
 def extract_picks(text: str, game: dict, *, max_picks: int = 3) -> list:
     """All distinct picks for one game found in article text."""
     found, seen = [], set()
     for confidence, patterns in (("confirmed", CONFIRMED), ("inferred", INFERRED)):
         for pat in patterns:
             for m in re.finditer(pat, text, re.I):
-                parsed = parse_selection(m.group("sel"), game)
-                if not parsed:
-                    continue
-                market, side = parsed
-                key = (market, side.get("team"), side.get("ou"))
-                if key in seen:
-                    continue
-                # A side and a total can both be picks; two different sides can't.
-                if market != "total" and any(k[0] != "total" and k[1] != side["team"] for k in seen):
-                    continue
-                seen.add(key)
-                found.append({"market": market, "side": side, "confidence": confidence,
-                              "quote": m.group(0).strip()[:140]})
+                for part in _selections(m.group("sel")):
+                    parsed = parse_selection(part, game)
+                    if not parsed:
+                        continue
+                    market, side = parsed
+                    key = (market, side.get("team"), side.get("ou"))
+                    if key in seen:
+                        continue
+                    # A side and a total can both be picks; two different sides can't.
+                    if market != "total" and any(k[0] != "total" and k[1] != side["team"] for k in seen):
+                        continue
+                    seen.add(key)
+                    found.append({"market": market, "side": side, "confidence": confidence,
+                                  "quote": m.group(0).strip()[:140]})
         if found:
             break  # confirmed picks win; don't add softer guesses
     return found[:max_picks]

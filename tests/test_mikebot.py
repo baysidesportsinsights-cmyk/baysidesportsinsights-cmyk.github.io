@@ -71,6 +71,12 @@ class ExtractTest(unittest.TestCase):
             self.assertEqual((m, side["team"], side["line"]), (market, team, line), sel)
         self.assertIsNone(parse_selection("the home dog", self.g))
 
+    def test_two_selections_in_one_pick(self):
+        # Doc's Sports phrasing seen live on 2026-10-27
+        picks = extract_picks("Pick: Take New York and under the total points.", self.g)
+        got = {(p["market"], p["side"]["team"], p["side"]["ou"]) for p in picks}
+        self.assertEqual(got, {("moneyline", "NY", None), ("total", None, "under")})
+
     def test_inferred_only_when_no_confirmed(self):
         picks = extract_picks("We lean the Knicks at home tonight.", self.g)
         self.assertEqual([(p["side"]["team"], p["confidence"]) for p in picks], [("NY", "inferred")])
@@ -87,6 +93,27 @@ class LinkTest(unittest.TestCase):
         self.assertIn("celtics", bos[0])
         self.assertEqual([u for u in links if link_matches(u, g["ORL @ MIA"], "2026-10-27")], [])  # stale date
         self.assertEqual(len([u for u in links if link_matches(u, g["GS @ LAL"], "2026-10-27")]), 1)
+
+
+class LiveFormatTest(unittest.TestCase):
+    def test_pickswise_game_links(self):
+        import re
+        src = next(x for x in SOURCES if x.id == "pickswise")
+        g = {x["matchup"]: x for x in games()}
+        page = ('<a href="/nba/games/boston-celtics-new-york-knicks-nba-2026-10-27-1930/picks/">p</a>'
+                '<a href="/nba/games/boston-celtics-new-york-knicks-nba-2026-10-27-1930/">g</a>'
+                '<a href="/nba/news/nba-best-bets-today-october-27-picks-predictions/">n</a>')
+        links = re.findall(src.link_re.format(slug="nba"), page)
+        self.assertEqual(links, ["/nba/games/boston-celtics-new-york-knicks-nba-2026-10-27-1930/picks/"])
+        self.assertTrue(link_matches(links[0], g["BOS @ NY"], "2026-10-27"))
+
+    def test_docsports_bare_team_is_spread(self):
+        from mikebot.sources import is_bare_team
+        g = next(x for x in games() if x["matchup"] == "BOS @ NY")
+        p = extract_picks("Pick: Take Boston", g)[0]
+        self.assertTrue(is_bare_team(p))
+        self.assertFalse(is_bare_team(extract_picks("Pick: Celtics ML", g)[0]))
+        self.assertEqual(next(x for x in SOURCES if x.id == "docsports").bare_team, "spread")
 
 
 class ScoringTest(unittest.TestCase):

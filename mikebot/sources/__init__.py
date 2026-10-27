@@ -55,8 +55,10 @@ class IndexArticleSource:
 
     type = "expert"
 
-    def __init__(self, sid, name, index_urls, link_re, article_url=None, max_articles=20):
+    def __init__(self, sid, name, index_urls, link_re, article_url=None, max_articles=20,
+                 bare_team="moneyline"):
         self.id, self.name = sid, name
+        self.bare_team = bare_team        # what "Pick: Take Brooklyn" means at this site
         self.index_urls = index_urls      # {sport_key: url}
         self.link_re = link_re            # regex with one group = absolute or relative url
         self.article_url = article_url    # optional fn(sport, game, date) -> guessed url
@@ -102,10 +104,18 @@ class IndexArticleSource:
                 errors.append(str(e))
                 continue
             for p in extract_picks(text, game):
+                if self.bare_team == "spread" and is_bare_team(p):
+                    p["market"] = "spread"  # graded against the market line
                 picks.append(make_pick(self.id, game, p, url=cands[0]))
         status = "ok" if picks else ("failed" if errors and len(errors) == checked else "empty")
         note = f"{len(links)} links, {checked} articles" + (f", {len(errors)} errors" if errors else "")
         return result(self.id, status, picks, note, checked)
+
+
+def is_bare_team(p):
+    """A team named with no line, odds or 'moneyline' wording."""
+    return (p["market"] == "moneyline" and p["side"].get("odds") is None
+            and not re.search(r"\b(ML|money ?line|to win|straight up)\b", p.get("quote", ""), re.I))
 
 
 def make_pick(source_id, game, p, url=None):
@@ -182,13 +192,14 @@ SOURCES = [
         "pickswise", "Pickswise",
         {"NFL": "https://www.pickswise.com/nfl/picks/", "NBA": "https://www.pickswise.com/nba/picks/",
          "MLB": "https://www.pickswise.com/mlb/picks/", "NHL": "https://www.pickswise.com/nhl/picks/"},
-        r'href="((?:https://www\.pickswise\.com)?/{slug}/picks/[a-z0-9-]+-(?:predictions?|picks?)[a-z0-9-]*/?)"',
+        r'href="((?:https://www\.pickswise\.com)?/{slug}/games/[a-z0-9-]+/picks/)"',
     ),
     IndexArticleSource(
         "docsports", "Doc's Sports",
         {"NFL": "https://www.docsports.com/free-picks/football/",
          "NBA": "https://www.docsports.com/free-picks/nba/"},
         r'href="((?:https://www\.docsports\.com)?/free-picks/(?:football|nba|basketball)/20\d\d/[a-z0-9-]+\.html)"',
+        bare_team="spread",  # Doc's free picks are against the spread
     ),
     ManualSource(),
 ]
