@@ -79,8 +79,14 @@ def parse_selection(sel: str, game: dict):
         if mm:
             after = s[mm.end():]
             break
+    if re.match(r"\s*(?:to cover|ATS|against the spread)\b", after, re.I):
+        return "spread", {"team": abbr, "line": None, "ou": None}
     if re.match(r"\s*(?:\(|on the\s+)?(?:ML|moneyline|money line|to win|straight up)\b", after, re.I):
-        return "moneyline", {"team": abbr, "line": None, "ou": None}
+        side = {"team": abbr, "line": None, "ou": None}
+        odds = re.search(r"\(\s*([-+]\d{3,4})\s*\)", after)
+        if odds:
+            side["odds"] = int(odds.group(1))
+        return "moneyline", side
     sm = re.match(r"\s*\(?\s*(" + NUM + r")(?!\d)", after)
     if sm:
         line = _f(sm.group(1))

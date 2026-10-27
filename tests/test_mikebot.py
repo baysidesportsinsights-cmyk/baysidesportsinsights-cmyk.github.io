@@ -65,11 +65,14 @@ class ExtractTest(unittest.TestCase):
             "the Celtics to win": ("moneyline", "BOS", None),
             "Over 221.5": ("total", None, 221.5),
             "Boston": ("moneyline", "BOS", None),
+            "the Knicks to cover": ("spread", "NY", None),
         }
         for sel, (market, team, line) in cases.items():
             m, side = parse_selection(sel, self.g)
             self.assertEqual((m, side["team"], side["line"]), (market, team, line), sel)
         self.assertIsNone(parse_selection("the home dog", self.g))
+        # Pickswise phrasing seen live: odds in parentheses after ML
+        self.assertEqual(parse_selection("New York ML (+135) available at time of publishing", self.g)[1]["odds"], 135)
 
     def test_two_selections_in_one_pick(self):
         # Doc's Sports phrasing seen live on 2026-10-27
