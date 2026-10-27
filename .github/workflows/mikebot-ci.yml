@@ -37,6 +37,7 @@ jobs:
       - name: Smoke run
         env:
           MIKEBOT_SPORTS: NFL,NBA
+          MIKEBOT_DEBUG: "1"
         run: |
           args=""
           if [ -n "${{ github.event.inputs.date }}" ]; then args="--date ${{ github.event.inputs.date }}"; fi

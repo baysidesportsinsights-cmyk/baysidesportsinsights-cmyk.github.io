@@ -1,5 +1,7 @@
 """MikeBot's jobs: Daily Prep, Daily Pull, Daily Reflection, briefing."""
 
+import os
+
 from . import briefing, deliver, espn, store
 from .config import active_sports, data_dir, now_iso, shift_date
 from .grading import grade_day, update_ledger
@@ -52,6 +54,10 @@ def pull(sport, date, log=print, only=None):
         picks.extend(r["picks"] or old_by_via.get(src.id, []))
         old_by_via.pop(src.id, None)
         log(f"[{sport.key} {date}]   {src.id:<10} {r['status']:<7} {len(r['picks'])} picks  {r['note']}")
+        if os.environ.get("MIKEBOT_DEBUG"):
+            games = {g["game_id"]: g["matchup"] for g in day["games"]}
+            for p in r["picks"]:
+                log(f"      {games.get(p['game_id'])}: {p['market']} {p['side']} [{p['confidence']}] <- {p['notes']!r}")
     for rest in old_by_via.values():  # sources not run this time (--only)
         picks.extend(rest)
     day["picks"] = picks

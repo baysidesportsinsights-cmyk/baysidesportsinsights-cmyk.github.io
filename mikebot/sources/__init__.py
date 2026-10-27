@@ -5,6 +5,7 @@ one blocked site never stops the daily run.
 """
 
 import json
+import os
 import re
 from datetime import datetime
 
@@ -73,6 +74,9 @@ class IndexArticleSource:
             href = href if href.startswith("http") else root + href
             if href not in out:
                 out.append(href)
+        if not out and os.environ.get("MIKEBOT_DEBUG"):
+            hrefs = sorted(set(re.findall(r'href="([^"]*' + re.escape(sport.slug) + r'[^"]*)"', page)))
+            print(f"  [debug] {self.id}: no links matched; {len(page)} bytes; sample hrefs: {hrefs[:25]}")
         return out
 
     def pull(self, sport, date, games):
