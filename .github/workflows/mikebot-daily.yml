@@ -1,0 +1,81 @@
+name: MikeBot Daily
+
+# Scheduled runs only fire from the default branch (main).
+# Times are UTC: 14:17 = 10:17 AM EDT / 9:17 AM EST, 21:47 = 5:47 PM EDT / 4:47 PM EST.
+on:
+  schedule:
+    - cron: "17 14 * * *"   # daily: grade yesterday, pull today, send briefing
+    - cron: "47 21 * * *"   # late pull: re-check sources for tonight's games
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "daily (with briefing) or pull (rescore only)"
+        default: daily
+        type: choice
+        options: [daily, pull, reflect]
+      date:
+        description: "YYYY-MM-DD (default today ET)"
+        required: false
+      send:
+        description: "Send the briefing (daily only)"
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mikebot-data
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      MIKEBOT_SPORTS: ${{ vars.MIKEBOT_SPORTS || 'NFL,NBA' }}
+      MIKEBOT_SMTP_USER: ${{ secrets.MIKEBOT_SMTP_USER }}
+      MIKEBOT_SMTP_PASSWORD: ${{ secrets.MIKEBOT_SMTP_PASSWORD }}
+      MIKEBOT_EMAIL_TO: ${{ secrets.MIKEBOT_EMAIL_TO }}
+      MIKEBOT_DISCORD_WEBHOOK: ${{ secrets.MIKEBOT_DISCORD_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check out the data branch into ./data
+        run: |
+          git config user.name "MikeBot"
+          git config user.email "mikebot@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin mikebot-data >/dev/null; then
+            git fetch origin mikebot-data
+            git worktree add -B mikebot-data data origin/mikebot-data
+          else
+            git worktree add --orphan -b mikebot-data data
+          fi
+
+      - name: Run MikeBot
+        run: |
+          job="${{ github.event.inputs.job || '' }}"
+          if [ -z "$job" ]; then
+            if [ "${{ github.event.schedule }}" = "47 21 * * *" ]; then job=pull; else job=daily; fi
+          fi
+          args=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then args="--date ${{ github.event.inputs.date }}"; fi
+          send="--send"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.send }}" != "true" ]; then send=""; fi
+          if [ "$job" != "daily" ]; then send=""; fi
+          python -m mikebot $job $args $send
+          python -m mikebot status
+
+      - name: Commit data
+        if: always()
+        working-directory: data
+        run: |
+          git add -A
+          if git diff --cached --quiet; then echo "no data changes"; exit 0; fi
+          git -c user.name=MikeBot -c user.email=mikebot@users.noreply.github.com \
+            commit -m "MikeBot ${{ github.event.inputs.job || 'scheduled' }} run $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push origin mikebot-data

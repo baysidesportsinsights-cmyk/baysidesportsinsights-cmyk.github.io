@@ -1,0 +1,49 @@
+name: MikeBot CI
+
+on:
+  push:
+    paths: ["mikebot/**", "tests/**", ".github/workflows/mikebot-*.yml"]
+  pull_request:
+    paths: ["mikebot/**", "tests/**", ".github/workflows/mikebot-*.yml"]
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Date to smoke-test (YYYY-MM-DD, default today ET)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s tests -v
+
+  smoke:
+    # Live dry run against ESPN and every tout source. Writes nothing; the log
+    # shows which sources are healthy today.
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Smoke run
+        env:
+          MIKEBOT_SPORTS: NFL,NBA
+        run: |
+          args=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then args="--date ${{ github.event.inputs.date }}"; fi
+          python -m mikebot smoke $args --html-out briefing.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-briefing
+          path: briefing.html
+          if-no-files-found: ignore
